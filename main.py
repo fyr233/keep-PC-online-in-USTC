@@ -12,8 +12,8 @@ wlt_url = 'http://wlt.ustc.edu.cn/cgi-bin/ip'
 
 def parse_RTdata(j):
     cpu = ' '.join(re.findall('"Text": "CPU Core .*? "Value": "(.*?)",',j))
-    gpu = ' '.join(re.findall('"Text": "Temperatures", .*? "Text": "GPU Core", .*? "Value": "(.*?)",',j))
-    gpu += ' ' + re.findall('"Text": "Fans", .*? "Text": "GPU Fan", .*? "Value": "(.*?)",',j)[0]
+    gpu = ' '.join(re.findall('"Text": "Temperatures", "Children": \[{"id": \d+, "Text": "GPU Core", "Children": \[], "Min": ".*? °C", "Value": .*?,',j))
+    gpu += ' ' + ' '.join(re.findall('"Text": "Fans", .*? "Text": "GPU Fan", .*? "Value": "(.*?)",',j))
     return cpu,gpu
 
 #开通网络通
