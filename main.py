@@ -27,9 +27,9 @@ def open_wlt():
     login_data = {
         'cmd': 'login',
         'url': 'URL',
-        'name': 'fyr233',
+        'name': 'nnnn',
         'ip': schoolIP,
-        'password': '233016',
+        'password': 'ppppp',
         'savepass': 'on',
         'go': '%B5%C7%C2%BC%D5%CA%BB%A7'
         }
