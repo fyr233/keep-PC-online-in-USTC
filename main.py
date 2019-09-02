@@ -12,7 +12,7 @@ wlt_url = 'http://wlt.ustc.edu.cn/cgi-bin/ip'
 
 def parse_RTdata(j):
     cpu = ' '.join(re.findall('"Text": "CPU Core .*? "Value": "(.*?)",',j))
-    gpu = ' '.join(re.findall('"Text": "Temperatures", "Children": \[{"id": \d+, "Text": "GPU Core", "Children": \[], "Min": ".*? °C", "Value": .*?,',j))
+    gpu = ' '.join(re.findall('"Text": "Temperatures", "Children": \[{"id": \d+, "Text": "GPU Core", "Children": \[], "Min": ".*? °C", "Value": "(.*?)",',j))
     gpu += ' ' + ' '.join(re.findall('"Text": "Fans", .*? "Text": "GPU Fan", .*? "Value": "(.*?)",',j))
     return cpu,gpu
 
@@ -40,7 +40,7 @@ def open_wlt():
     set_headers = {
                 'Host': 'wlt.ustc.edu.cn',
                 'Referer': 'http://wlt.ustc.edu.cn/cgi-bin/ip',
-                'Cookie': 'name=fyr233; password=233016; ' + cookie_rn,
+                'Cookie': 'name=nnnn; password=ppppp; ' + cookie_rn,
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.131 Safari/537.36'
                 }
     req3 = requests.get(set_url, headers=set_headers)
@@ -51,12 +51,19 @@ def open_wlt():
 def set_WiFi():
     print('正在连接eduroam')
     os.system('netsh wlan connect name=eduroam ssid=eduroam interface="WLAN"')#连接eduroam
+    os.system('netsh wlan connect name=eduroam ssid=eduroam interface="WLAN 2"')#连接eduroam
 
+def set_VPN():
+    print('正在设置VPN')
+    os.system('rasdial "腾讯云" VPN Vguest123')
+
+
+error_count = 0
 time.sleep(10)
 while True:
     #cpu_usage = psutil.cpu_percent()
     hostname = socket.gethostname()
-    IP = socket.gethostbyname(hostname)
+    IP_list = socket.gethostbyname_ex(hostname)[-1]
     #print(cpu_usage)
     try:
         r2 = requests.get(RTdata_url)
@@ -66,7 +73,7 @@ while True:
         RTdata = (str(psutil.cpu_percent()), 'NOdata')
         r2t = '数据获取失败'
 
-    data = {'ip':IP,
+    data = {'ip':str(IP_list),
         'cpu':RTdata[0],
         'gpu':RTdata[1],
         'RTdata':r2t}
@@ -80,10 +87,13 @@ while True:
             print('网络通也上不去啦')
             set_WiFi()
             time.sleep(15)
+            set_VPN()
             try:
                 open_wlt()
             except:
-            	pass
+                pass
+        else:
+            set_VPN()
     else:
         print('success')
     time.sleep(30)
