@@ -1,14 +1,21 @@
-import requests
+﻿import requests
 import psutil
 import socket
 import time
 import json
 import re
 import os
+import sys
+from xzqhotspot import manager as hsmanager
+import subprocess
+from termcolor import colored
 
-ip_url = 'http://47.94.255.161:1925/addlog'
+ip_url = 'http://47.94.255.***:1925/addlog'
 RTdata_url = 'http://localhost:8085/data.json'
 wlt_url = 'http://wlt.ustc.edu.cn/cgi-bin/ip'
+
+hsmgr = hsmanager()
+os.system('color')
 
 def parse_RTdata(j):
     cpu = ' '.join(re.findall('"Text": "CPU Core .*? "Value": "(.*?)",',j))
@@ -27,9 +34,9 @@ def open_wlt():
     login_data = {
         'cmd': 'login',
         'url': 'URL',
-        'name': 'nnnn',
+        'name': 'nnnnnn',
         'ip': schoolIP,
-        'password': 'ppppp',
+        'password': 'pppppp',
         'savepass': 'on',
         'go': '%B5%C7%C2%BC%D5%CA%BB%A7'
         }
@@ -40,7 +47,7 @@ def open_wlt():
     set_headers = {
                 'Host': 'wlt.ustc.edu.cn',
                 'Referer': 'http://wlt.ustc.edu.cn/cgi-bin/ip',
-                'Cookie': 'name=nnnn; password=ppppp; ' + cookie_rn,
+                'Cookie': 'name=nnnnnn; password=pppppp; ' + cookie_rn,
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.131 Safari/537.36'
                 }
     req3 = requests.get(set_url, headers=set_headers)
@@ -54,17 +61,35 @@ def set_WiFi():
     os.system('netsh wlan connect name=eduroam ssid=eduroam interface="WLAN 2"')#连接eduroam
 
 def set_VPN():
-    print('正在设置VPN')
-    os.system('rasdial "腾讯云" VPN Vguest123')
+	print('正在设置VPN')
+	os.system('rasdial "腾讯云" *** *******')
+
+def test_Ping():
+    sites = ['eth-cn.dwarfpool.com','xmr-us.dwarfpool.com']
+    result = ''
+    for each in sites:
+        p = subprocess.Popen('ping '+each, shell = True, stdout = subprocess.PIPE)
+        p.wait()
+        result += each + ':' + re.findall('平均 = (.*?ms)', p.stdout.read().decode('gbk'))[0] + ' '
+    return result
+
+def fix_5G():
+    hsmgr.disable_network_adapter('8812BU')
+    hsmgr.disable_network_adapter('8811CU')
+    hsmgr.enable_network_adapter('8811CU')
+    hsmgr.enable_network_adapter('8812BU')
 
 
-error_count = 0
 time.sleep(10)
+fix_5G()
+hsmgr.start_hotspot()
 while True:
     #cpu_usage = psutil.cpu_percent()
     hostname = socket.gethostname()
     IP_list = socket.gethostbyname_ex(hostname)[-1]
     #print(cpu_usage)
+
+    #获取OpenHardwareMonitor的数据
     try:
         r2 = requests.get(RTdata_url)
         RTdata = parse_RTdata(r2.text)
@@ -73,27 +98,84 @@ while True:
         RTdata = (str(psutil.cpu_percent()), 'NOdata')
         r2t = '数据获取失败'
 
+    #准备要发送的数据
     data = {'ip':str(IP_list),
         'cpu':RTdata[0],
         'gpu':RTdata[1],
         'RTdata':r2t}
+    
+    #网络检测
     try:
         r1 = requests.post(ip_url, data=data)
+    
+    #连接不到LOG服务器
     except:
-        print('network error')
-        try:
-            open_wlt()
-        except:
-            print('网络通也上不去啦')
-            set_WiFi()
-            time.sleep(15)
+        print(colored('信息--LOG服务器(47.94.255.***)连接失败', 'red'))
+        
+        #检测是否接入internet
+        if hsmgr.is_internet_available():
+            print(colored('信息--已连入internet', 'green'))
+
+            #发送VPN连接请求
+            print('正在重连VPN')
             set_VPN()
+
+            #重新测试连接
             try:
-                open_wlt()
+                r1 = requests.post(ip_url, data=data)
+
+            #连接失败
             except:
-                pass
+                #尝试连接网络通
+                try:
+                    print('正在连接网络通')
+                    open_wlt()
+                #网络通开通失败
+                except:
+                    print(colored('信息--网络通开通失败', 'red'))
+
         else:
-            set_VPN()
+            print(colored('信息--未连入internet', 'red'))
+            
+            #尝试连接网络通
+            try:
+                print('正在连接网络通')
+                open_wlt()
+                print(colored('信息--网络通开通成功', 'green'))
+
+            #网络通开通失败
+            except:
+                print(colored('信息--网络通开通失败', 'red'))
+                
+                #发送WIFI连接请求
+                print('发送WIFI连接请求')
+                set_WiFi()
+                time.sleep(10)
+
+                #尝试连接网络通
+                try:
+                    print('正在连接网络通')
+                    open_wlt()
+                    print(colored('信息--网络通开通成功', 'green'))
+                    #发送VPN连接请求
+                    print('正在重连VPN')
+                    set_VPN()
+
+                #网络通开通失败
+                except:
+                    print(colored('信息--网络通开通又失败', 'red'))
+
+    
+    #连接LOG服务器成功
     else:
-        print('success')
+        p = test_Ping()
+        print(colored('信息--' + time.strftime("%H:%M:%S", time.localtime()) + ' LOG服务器连接成功  当前SSID:' + hsmgr.get_wifi_ssid() + '  延迟:' + p, 'green'))
+
+    if hsmgr.hotspot_status() == 1:
+        print(colored('信息--热点已开启', 'green'))
+    else:
+        print('正在设置热点')
+        fix_5G()
+        hsmgr.start_hotspot()
+
     time.sleep(30)
