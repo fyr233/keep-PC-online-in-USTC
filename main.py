@@ -10,18 +10,24 @@ from xzqhotspot import manager as hsmanager
 import subprocess
 from termcolor import colored
 
-ip_url = 'http://47.94.255.***:1925/addlog'
+ip_url = 'http://47.94.255.161:1925/addlog'
 RTdata_url = 'http://localhost:8085/data.json'
 wlt_url = 'http://wlt.ustc.edu.cn/cgi-bin/ip'
+claymore_url= 'http://localhost:3333'
 
 hsmgr = hsmanager()
 os.system('color')
 
 def parse_RTdata(j):
+    worker = re.findall('"id": 1, "Text": "(.*?)"', j)[0]
     cpu = ' '.join(re.findall('"Text": "CPU Core .*? "Value": "(.*?)",',j))
     gpu = ' '.join(re.findall('"Text": "Temperatures", "Children": \[{"id": \d+, "Text": "GPU Core", "Children": \[], "Min": ".*? °C", "Value": "(.*?)",',j))
     gpu += ' ' + ' '.join(re.findall('"Text": "Fans", .*? "Text": "GPU Fan", .*? "Value": "(.*?)",',j))
-    return cpu,gpu
+    return worker,cpu,gpu
+
+def parse_HashRatedata(t):
+    hr = re.findall('Total Speed: (.*?Mh/s)', t)[-1]
+    return hr
 
 #开通网络通
 def open_wlt():
@@ -43,7 +49,7 @@ def open_wlt():
     req2 = requests.post(wlt_url, data=login_data)
     cookie_rn = req2.headers['Set-Cookie']#获取rn
     #开通网络
-    set_url = wlt_url + '?cmd=set&url=URL&type=0&exp=0&go=+%BF%AA%CD%A8%CD%F8%C2%E7+'#type为出口，exp为时长
+    set_url = wlt_url + '?cmd=set&url=URL&type=8&exp=0&go=+%BF%AA%CD%A8%CD%F8%C2%E7+'#type为出口，exp为时长
     set_headers = {
                 'Host': 'wlt.ustc.edu.cn',
                 'Referer': 'http://wlt.ustc.edu.cn/cgi-bin/ip',
@@ -61,28 +67,38 @@ def set_WiFi():
     os.system('netsh wlan connect name=eduroam ssid=eduroam interface="WLAN 2"')#连接eduroam
 
 def set_VPN():
-	print('正在设置VPN')
-	os.system('rasdial "腾讯云" *** *******')
+	#print('正在设置VPN')
+	os.system('rasdial "腾讯云" VPN Vguest123')
+
+def restart_VPN():
+	#print('正在设置VPN')
+    os.system('rasdial "腾讯云" /disconnect')
+    os.system('rasdial "腾讯云" VPN Vguest123')
 
 def test_Ping():
-    sites = ['eth-cn.dwarfpool.com','xmr-us.dwarfpool.com']
+    sites = ['ckb.f2pool.com','eth-cn.dwarfpool.com','xmr-us.dwarfpool.com']
     result = ''
     for each in sites:
         p = subprocess.Popen('ping '+each, shell = True, stdout = subprocess.PIPE)
         p.wait()
-        result += each + ':' + re.findall('平均 = (.*?ms)', p.stdout.read().decode('gbk'))[0] + ' '
+        ave = re.findall('平均 = (.*?ms)', p.stdout.read().decode('gbk'))
+        if len(ave) == 0:
+            result += each + ':---' + ' '
+        else:
+            result += each + ':' + ave[0] + ' '
     return result
 
-def fix_5G():
+def restart_adapter():
     hsmgr.disable_network_adapter('8812BU')
     hsmgr.disable_network_adapter('8811CU')
     hsmgr.enable_network_adapter('8811CU')
     hsmgr.enable_network_adapter('8812BU')
 
 
-time.sleep(10)
-fix_5G()
-hsmgr.start_hotspot()
+vpn_error_count = 0
+#print('正在重启网卡')
+#restart_adapter()
+#hsmgr.start_hotspot()
 while True:
     #cpu_usage = psutil.cpu_percent()
     hostname = socket.gethostname()
@@ -95,13 +111,22 @@ while True:
         RTdata = parse_RTdata(r2.text)
         r2t = r2.text
     except:
-        RTdata = (str(psutil.cpu_percent()), 'NOdata')
+        RTdata = (socket.gethostname(), str(psutil.cpu_percent()), 'NOdata')
         r2t = '数据获取失败'
+
+    #获取claymore的数据
+    try:
+        r3 = requests.get(claymore_url)
+        Claymore_Hashdata = parse_HashRatedata(r3.text)
+    except:
+        Claymore_Hashdata = '数据获取失败'
 
     #准备要发送的数据
     data = {'ip':str(IP_list),
-        'cpu':RTdata[0],
-        'gpu':RTdata[1],
+        'worker':RTdata[0],
+        'cpu':RTdata[1],
+        'gpu':RTdata[2],
+        'Claymore hashrate':Claymore_Hashdata,
         'RTdata':r2t}
     
     #网络检测
@@ -110,14 +135,14 @@ while True:
     
     #连接不到LOG服务器
     except:
-        print(colored('信息--LOG服务器(47.94.255.***)连接失败', 'red'))
+        print(colored('信息--LOG服务器(47.94.255.161)连接失败', 'red'))
         
         #检测是否接入internet
         if hsmgr.is_internet_available():
             print(colored('信息--已连入internet', 'green'))
 
             #发送VPN连接请求
-            print('正在重连VPN')
+            print('正在连接VPN')
             set_VPN()
 
             #重新测试连接
@@ -126,13 +151,33 @@ while True:
 
             #连接失败
             except:
+                vpn_error_count += 1
+                if vpn_error_count >= 5:
+                    print('正在断开重连VPN')
+                    restart_VPN()
+                    vpn_error_count = 0
+
                 #尝试连接网络通
                 try:
                     print('正在连接网络通')
                     open_wlt()
+
+                    #重新测试连接
+                    try:
+                        r1 = requests.post(ip_url, data=data)
+                        print(colored('信息--LOG服务器连接恢复', 'green'))
+
+                    #连接失败
+                    except:
+                    	pass
+                        #print('正在重启网卡')
+                        #restart_adapter()
+
                 #网络通开通失败
                 except:
                     print(colored('信息--网络通开通失败', 'red'))
+                    #print('正在重启网卡')
+                    #restart_adapter()
 
         else:
             print(colored('信息--未连入internet', 'red'))
@@ -164,18 +209,26 @@ while True:
                 #网络通开通失败
                 except:
                     print(colored('信息--网络通开通又失败', 'red'))
+                    #print('正在重启网卡')
+                    #restart_adapter()
 
     
     #连接LOG服务器成功
     else:
         p = test_Ping()
-        print(colored('信息--' + time.strftime("%H:%M:%S", time.localtime()) + ' LOG服务器连接成功  当前SSID:' + hsmgr.get_wifi_ssid() + '  延迟:' + p, 'green'))
+        try:
+            ssid = hsmgr.get_wifi_ssid()
+            print(colored('信息--' + time.strftime("%H:%M:%S", time.localtime()) + ' LOG服务器连接成功  当前SSID:' + hsmgr.get_wifi_ssid() + '  延迟:' + p, 'green'))
+        except:
+            print(colored('信息--' + time.strftime("%H:%M:%S", time.localtime()) + ' LOG服务器连接成功  延迟:' + p, 'green'))
+            set_WiFi()
 
-    if hsmgr.hotspot_status() == 1:
-        print(colored('信息--热点已开启', 'green'))
-    else:
-        print('正在设置热点')
-        fix_5G()
-        hsmgr.start_hotspot()
+        if hsmgr.hotspot_status() == 1:
+            print(colored('信息--热点已开启', 'green'))
+        else:
+            #print('正在设置热点')
+            #restart_adapter()
+            #hsmgr.start_hotspot()
+            pass
 
     time.sleep(30)
