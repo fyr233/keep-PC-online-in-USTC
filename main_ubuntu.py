@@ -1,4 +1,4 @@
-import requests
+﻿import requests
 import psutil
 import socket
 import time
@@ -80,11 +80,11 @@ def test_Ping():
     for each in sites:
         p = subprocess.Popen('ping -c 4 '+each, shell = True, stdout = subprocess.PIPE)
         p.wait()
-        ave = re.findall('min/avg/max/mdev = [0-9]*?/(.*?)/.*？ms', p.stdout.read().decode('gbk'))
+        ave = re.findall('min/avg/max/mdev = (.*?) ms', p.stdout.read().decode('utf-8'))
         if len(ave) == 0:
             result += each + ':---' + ' '
         else:
-            result += each + ':' + ave[0] + ' '
+            result += each + ':' + ave[0].split('/')[1] + ' '
     return result
 
 def restart_adapter():
