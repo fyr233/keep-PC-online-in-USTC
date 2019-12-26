@@ -31,7 +31,7 @@ def parse_HashRatedata(t):
 
 #开通网络通
 def open_wlt():
-    print('正在设置网络通')
+    #print('正在设置网络通')
     #获取校内ip
     req1 = requests.get(wlt_url)
     req1.encoding = 'gb2312'
@@ -49,6 +49,7 @@ def open_wlt():
     req2 = requests.post(wlt_url, data=login_data)
     cookie_rn = req2.headers['Set-Cookie']#获取rn
     #开通网络
+    print('9出口')
     set_url = wlt_url + '?cmd=set&url=URL&type=8&exp=0&go=+%BF%AA%CD%A8%CD%F8%C2%E7+'#type为出口，exp为时长
     set_headers = {
                 'Host': 'wlt.ustc.edu.cn',
@@ -169,7 +170,7 @@ while True:
 
                     #连接失败
                     except:
-                    	pass
+                    	set_WiFi()
                         #print('正在重启网卡')
                         #restart_adapter()
 
