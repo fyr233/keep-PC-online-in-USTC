@@ -79,6 +79,15 @@ def restart_VPN_win():
     os.system('rasdial "腾讯云" /disconnect')
     os.system('rasdial "腾讯云" VPN Vguest123')
 
+def set_VPN_lin():
+	#print('正在设置VPN')
+	os.system('nmcli c up tencent03')
+
+def restart_VPN_lin():
+	#print('正在设置VPN')
+    os.system('nmcli c up tencent03')
+    os.system('nmcli c down tencent03')
+
 def test_Ping_win():
     sites = config['ping']['sites']
     result = ''
@@ -90,6 +99,19 @@ def test_Ping_win():
             result += each + ':---' + ' '
         else:
             result += each + ':' + ave[0] + ' '
+    return result
+
+def test_Ping_lin():
+    sites = ['baidu.com','ustc.edu.cn','47.94.255.161']
+    result = ''
+    for each in sites:
+        p = subprocess.Popen('ping -c 4 '+each, shell = True, stdout = subprocess.PIPE)
+        p.wait()
+        ave = re.findall('min/avg/max/mdev = (.*?) ms', p.stdout.read().decode('utf-8'))
+        if len(ave) == 0:
+            result += each + ':---' + ' '
+        else:
+            result += each + ':' + ave[0].split('/')[1] + ' '
     return result
 
 def restart_adapter_win():
@@ -116,7 +138,11 @@ while True:
     
     #连接LOG服务器成功
     else:
-        p = test_Ping_win()
+        if config['platform']=='windows':
+            p = test_Ping_win()
+        elif config['platform']=='linux':
+            p = test_Ping_lin()
+        
         print(colored(time.strftime("%H:%M:%S", time.localtime()) + ' 接入internet  延迟:' + p, 'green'))
 
     time.sleep(config['test_sleep'])
