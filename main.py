@@ -16,7 +16,7 @@ RTdata_url = 'http://localhost:8085/data.json'
 
 claymore_url= 'http://localhost:3333'
 
-
+if config['platform']=='windows'
 os.system('color')
 
 def parse_RTdata(j):
@@ -102,7 +102,7 @@ def test_Ping_win():
     return result
 
 def test_Ping_lin():
-    sites = ['baidu.com','ustc.edu.cn','47.94.255.161']
+    sites = config['ping']['sites']
     result = ''
     for each in sites:
         p = subprocess.Popen('ping -c 4 '+each, shell = True, stdout = subprocess.PIPE)
