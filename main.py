@@ -16,8 +16,8 @@ RTdata_url = 'http://localhost:8085/data.json'
 
 claymore_url= 'http://localhost:3333'
 
-if config['platform']=='windows'
-os.system('color')
+if config['platform']=='windows':
+    os.system('color')
 
 def parse_RTdata(j):
     worker = re.findall('"id": 1, "Text": "(.*?)"', j)[0]
